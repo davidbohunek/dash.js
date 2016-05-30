@@ -798,11 +798,28 @@ function DashManifestModel() {
         return utcTimingEntries;
     }
 
+    function getBaseUri(node) {
+
+        if (!node.originalUrl) {
+            return node.baseUri;
+        }
+
+        var prefix = 'http://localhost:8181/?url=';
+        var i = node.originalUrl.indexOf(prefix);
+        if (i !== 0) {
+            return node.baseUri;
+        }
+
+        var originalUrl = node.originalUrl.substring(prefix.length);
+        var e = originalUrl.lastIndexOf('/');
+        return originalUrl.substring(0, e + 1);
+    }
+
     function getBaseURLsFromElement(node) {
         let baseUrls = [];
         // if node.BaseURL_asArray and node.baseUri are undefined entries
         // will be [undefined] which entries.some will just skip
-        let entries = node.BaseURL_asArray || [node.baseUri];
+        let entries = node.BaseURL_asArray || [getBaseUri(node)];
         let earlyReturn = false;
 
         entries.some(entry => {

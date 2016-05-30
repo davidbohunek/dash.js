@@ -36,7 +36,12 @@ function RequestModifier() {
     let instance;
 
     function modifyRequestURL(url) {
-        return url;
+
+        if (window.enableProxy) {
+            return 'http://localhost:8181/?url=' + url;
+        } else {
+            return url;
+        }
     }
 
     function modifyRequestHeader(request) {

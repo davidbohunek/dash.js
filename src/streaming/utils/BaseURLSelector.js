@@ -74,6 +74,7 @@ function BaseURLSelector() {
             selector = dvbSelector;
         } else {
             selector = basicSelector;
+
         }
     }
 
