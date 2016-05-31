@@ -88,14 +88,15 @@ function XHRLoader(cfg) {
         var lastTraceTime = requestStartTime;
         var lastTraceReceivedCount = 0;
 
-        request.url = request.url.replace('v1_257', 'v9_257');
-        request.url = request.url.replace('v2_257', 'v9_257');
-        request.url = request.url.replace('v3_257', 'v9_257');
-        request.url = request.url.replace('v4_257', 'v9_257');
-        request.url = request.url.replace('v5_257', 'v9_257');
-        request.url = request.url.replace('v6_257', 'v9_257');
-        request.url = request.url.replace('v7_257', 'v9_257');
-        request.url = request.url.replace('v8_257', 'v9_257');
+        request.url = request.url.replace('v1_257', 'v7_257');
+        request.url = request.url.replace('v2_257', 'v7_257');
+        request.url = request.url.replace('v3_257', 'v7_257');
+        request.url = request.url.replace('v4_257', 'v7_257');
+        request.url = request.url.replace('v5_257', 'v7_257');
+        request.url = request.url.replace('v9_257', 'v7_257');
+        request.url = request.url.replace('v6_257', 'v7_257');
+        request.url = request.url.replace('v8_257', 'v7_257');
+
 
         const handleLoaded = function (success) {
             needFailureReport = false;
