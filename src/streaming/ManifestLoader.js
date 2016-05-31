@@ -105,6 +105,7 @@ function ManifestLoader(config) {
                 const manifest = parser.parse(data, xlinkController);
 
                 if (manifest) {
+                    console.log(manifest);
                     manifest.url = actualUrl || url;
 
                     // URL from which the MPD was originally retrieved (MPD updates will not change this value)

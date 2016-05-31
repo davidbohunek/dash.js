@@ -53,9 +53,15 @@ function XHRLoader(cfg) {
     let delayedXhrs;
     let retryTimers;
     let downloadErrorToRequestTypeMap;
-    let chunkDictionary = {};
+    let chunkDictionary;
 
     function setup() {
+        if (!window.chunks) {
+            window.chunks = {};
+        }
+
+        chunkDictionary = window.chunks;
+
         xhrs = [];
         delayedXhrs = [];
         retryTimers = [];
@@ -81,6 +87,15 @@ function XHRLoader(cfg) {
         const requestStartTime = new Date();
         var lastTraceTime = requestStartTime;
         var lastTraceReceivedCount = 0;
+
+        request.url = request.url.replace('v1_257', 'v9_257');
+        request.url = request.url.replace('v2_257', 'v9_257');
+        request.url = request.url.replace('v3_257', 'v9_257');
+        request.url = request.url.replace('v4_257', 'v9_257');
+        request.url = request.url.replace('v5_257', 'v9_257');
+        request.url = request.url.replace('v6_257', 'v9_257');
+        request.url = request.url.replace('v7_257', 'v9_257');
+        request.url = request.url.replace('v8_257', 'v9_257');
 
         const handleLoaded = function (success) {
             needFailureReport = false;
@@ -192,14 +207,8 @@ function XHRLoader(cfg) {
 
         try {
 
-            if (chunkDictionary[request.url]) {
-                console.log('>>found chunk in dictionary', request.url);
-                xhr = chunkDictionary[request.url];
-                onload();
-                return;
-            }
+            var modifiedUrl = requestModifier.modifyRequestURL(request.url);
 
-            const modifiedUrl = requestModifier.modifyRequestURL(request.url);
             const verb = request.checkExistenceOnly ? 'HEAD' : 'GET';
 
             xhr.open(verb, modifiedUrl, true);
@@ -225,28 +234,16 @@ function XHRLoader(cfg) {
 
             // Adds the ability to delay single fragment loading time to control buffer.
             let now = new Date().getTime();
-            if (isNaN(request.delayLoadingTime) || now >= request.delayLoadingTime) {
-                // no delay - just send xhr
 
-                xhrs.push(xhr);
-                xhr.send();
+            xhrs.push(xhr);
+            if (chunkDictionary[request.url]) {
+                console.log('++     found: ', request.url);
+                xhr = chunkDictionary[request.url];
+                onload()
+                onloadend();
             } else {
-                // delay
-                let delayedXhr = {xhr: xhr};
-                delayedXhrs.push(delayedXhr);
-                delayedXhr.delayTimeout = setTimeout(function () {
-                    if (delayedXhrs.indexOf(delayedXhr) === -1) {
-                        return;
-                    } else {
-                        delayedXhrs.splice(delayedXhrs.indexOf(delayedXhr), 1);
-                    }
-                    try {
-                        xhrs.push(delayedXhr.xhr);
-                        delayedXhr.xhr.send();
-                    } catch (e) {
-                        delayedXhr.xhr.onerror();
-                    }
-                }, (request.delayLoadingTime - now));
+                console.log('-- not found: ', request.url);
+                xhr.send();
             }
 
         } catch (e) {

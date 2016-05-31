@@ -67,22 +67,26 @@ function ThroughputRule(config) {
         var averageThroughput = 0;
         var sampleAmount = isDynamic ? AVERAGE_THROUGHPUT_SAMPLE_AMOUNT_LIVE : AVERAGE_THROUGHPUT_SAMPLE_AMOUNT_VOD;
         var arr = throughputArray[type];
-        var len = arr.length;
 
-        sampleAmount = len < sampleAmount ? len : sampleAmount;
+        if (arr) {
 
-        if (len > 0) {
-            var startValue = len - sampleAmount;
-            var totalSampledValue = 0;
+            var len = arr.length;
 
-            for (var i = startValue; i < len; i++) {
-                totalSampledValue += arr[i];
+            sampleAmount = len < sampleAmount ? len : sampleAmount;
+
+            if (len > 0) {
+                var startValue = len - sampleAmount;
+                var totalSampledValue = 0;
+
+                for (var i = startValue; i < len; i++) {
+                    totalSampledValue += arr[i];
+                }
+                averageThroughput = totalSampledValue / sampleAmount;
             }
-            averageThroughput = totalSampledValue / sampleAmount;
-        }
 
-        if (arr.length > sampleAmount) {
-            arr.shift();
+            if (arr.length > sampleAmount) {
+                arr.shift();
+            }
         }
 
         return (averageThroughput / 1000 ) * mediaPlayerModel.getBandwidthSafetyFactor();
