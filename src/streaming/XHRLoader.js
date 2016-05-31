@@ -53,6 +53,7 @@ function XHRLoader(cfg) {
     let delayedXhrs;
     let retryTimers;
     let downloadErrorToRequestTypeMap;
+    let chunkDictionary = {};
 
     function setup() {
         xhrs = [];
@@ -60,13 +61,13 @@ function XHRLoader(cfg) {
         retryTimers = [];
 
         downloadErrorToRequestTypeMap = {
-            [HTTPRequest.MPD_TYPE]:                         ErrorHandler.DOWNLOAD_ERROR_ID_MANIFEST,
-            [HTTPRequest.XLINK_EXPANSION_TYPE]:             ErrorHandler.DOWNLOAD_ERROR_ID_XLINK,
-            [HTTPRequest.INIT_SEGMENT_TYPE]:                ErrorHandler.DOWNLOAD_ERROR_ID_INITIALIZATION,
-            [HTTPRequest.MEDIA_SEGMENT_TYPE]:               ErrorHandler.DOWNLOAD_ERROR_ID_CONTENT,
-            [HTTPRequest.INDEX_SEGMENT_TYPE]:               ErrorHandler.DOWNLOAD_ERROR_ID_CONTENT,
+            [HTTPRequest.MPD_TYPE]: ErrorHandler.DOWNLOAD_ERROR_ID_MANIFEST,
+            [HTTPRequest.XLINK_EXPANSION_TYPE]: ErrorHandler.DOWNLOAD_ERROR_ID_XLINK,
+            [HTTPRequest.INIT_SEGMENT_TYPE]: ErrorHandler.DOWNLOAD_ERROR_ID_INITIALIZATION,
+            [HTTPRequest.MEDIA_SEGMENT_TYPE]: ErrorHandler.DOWNLOAD_ERROR_ID_CONTENT,
+            [HTTPRequest.INDEX_SEGMENT_TYPE]: ErrorHandler.DOWNLOAD_ERROR_ID_CONTENT,
             [HTTPRequest.BITSTREAM_SWITCHING_SEGMENT_TYPE]: ErrorHandler.DOWNLOAD_ERROR_ID_CONTENT,
-            [HTTPRequest.OTHER_TYPE]:                       ErrorHandler.DOWNLOAD_ERROR_ID_CONTENT
+            [HTTPRequest.OTHER_TYPE]: ErrorHandler.DOWNLOAD_ERROR_ID_CONTENT
         };
     }
 
@@ -177,6 +178,8 @@ function XHRLoader(cfg) {
             if (xhr.status >= 200 && xhr.status <= 299) {
                 handleLoaded(true);
 
+                chunkDictionary[request.url] = xhr;
+
                 if (config.success) {
                     config.success(xhr.response, xhr.statusText, xhr);
                 }
@@ -188,6 +191,14 @@ function XHRLoader(cfg) {
         };
 
         try {
+
+            if (chunkDictionary[request.url]) {
+                console.log('>>found chunk in dictionary', request.url);
+                xhr = chunkDictionary[request.url];
+                onload();
+                return;
+            }
+
             const modifiedUrl = requestModifier.modifyRequestURL(request.url);
             const verb = request.checkExistenceOnly ? 'HEAD' : 'GET';
 
