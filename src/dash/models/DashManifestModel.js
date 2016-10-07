@@ -74,7 +74,7 @@ function DashManifestModel() {
 
         if (col) {
             if (col.length > 1) {
-                return (type == 'muxed');
+                return (type === 'muxed');
             } else if (col[0] && col[0].contentType === type) {
                 result = true;
                 found = true;
@@ -235,7 +235,7 @@ function DashManifestModel() {
             let currentTrack = mediaController.getCurrentTrackFor(type, streamInfo);
             let allMediaInfoForType = adaptor.getAllMediaInfoForType(manifest, streamInfo, type);
             for (let i = 0, ln = adaptations.length; i < ln; i++) {
-                if (mediaController.isTracksEqual(currentTrack, allMediaInfoForType[i])) {
+                if (currentTrack && mediaController.isTracksEqual(currentTrack, allMediaInfoForType[i])) {
                     return adaptations[i];
                 }
                 if (getIsMain(adaptations[i])) {
@@ -393,8 +393,17 @@ function DashManifestModel() {
             }
             else if (r.hasOwnProperty('SegmentList')) {
                 segmentInfo = r.SegmentList;
-                representation.segmentInfoType = 'SegmentList';
-                representation.useCalculatedLiveEdgeTime = true;
+
+                if (segmentInfo.hasOwnProperty('SegmentTimeline')) {
+                    representation.segmentInfoType = 'SegmentTimeline';
+                    s = segmentInfo.SegmentTimeline.S_asArray[segmentInfo.SegmentTimeline.S_asArray.length - 1];
+                    if (!s.hasOwnProperty('r') || s.r >= 0) {
+                        representation.useCalculatedLiveEdgeTime = true;
+                    }
+                } else {
+                    representation.segmentInfoType = 'SegmentList';
+                    representation.useCalculatedLiveEdgeTime = true;
+                }
             }
             else if (r.hasOwnProperty('SegmentTemplate')) {
                 segmentInfo = r.SegmentTemplate;
@@ -861,6 +870,17 @@ function DashManifestModel() {
         return baseUrls;
     }
 
+    function getLocation(manifest) {
+        if (manifest.hasOwnProperty('Location')) {
+            // for now, do not support multiple Locations -
+            // just set Location to the first Location.
+            manifest.Location = manifest.Location_asArray[0];
+        }
+
+        // may well be undefined
+        return manifest.Location;
+    }
+
     instance = {
         getIsTypeOf: getIsTypeOf,
         getIsAudio: getIsAudio,
@@ -909,7 +929,8 @@ function DashManifestModel() {
         getEventStreamForRepresentation: getEventStreamForRepresentation,
         getUTCTimingSources: getUTCTimingSources,
         getBaseURLsFromElement: getBaseURLsFromElement,
-        getRepresentationSortFunction: getRepresentationSortFunction
+        getRepresentationSortFunction: getRepresentationSortFunction,
+        getLocation: getLocation
     };
 
     return instance;

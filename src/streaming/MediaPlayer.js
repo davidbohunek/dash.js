@@ -38,7 +38,6 @@ import ErrorHandler from './utils/ErrorHandler';
 import Capabilities from './utils/Capabilities';
 import TextTracks from './TextTracks';
 import SourceBufferController from './controllers/SourceBufferController';
-import VirtualBuffer from './VirtualBuffer';
 import RequestModifier from './utils/RequestModifier';
 import TextSourceBuffer from './TextSourceBuffer';
 import URIQueryAndFragmentModel from './models/URIQueryAndFragmentModel';
@@ -62,7 +61,7 @@ import {getVersionString} from './../core/Version';
 
 //Dash
 import DashAdapter from '../dash/DashAdapter';
-import DashParser from '../dash/DashParser';
+import DashParser from '../dash/parser/DashParser';
 import DashManifestModel from '../dash/models/DashManifestModel';
 import DashMetrics from '../dash/DashMetrics';
 import TimelineConverter from '../dash/utils/TimelineConverter';
@@ -295,34 +294,33 @@ function MediaPlayer() {
     }
 
     /**
-     * The length of the buffer for a given media type, in seconds. Valid media types are "video", "audio" and "fragmentedText". If no type
-     * is passed in, then the minimum of the video and the audio buffer length is returned. The value is returned to a precision of two decimal places.
-     * NaN is returned if an invalid type is requested, or if the presentation does not contain that type or if no arguments are passed and the
-     * presentation doers not include any audio or video adaption sets.
+     * The length of the buffer for a given media type, in seconds. Valid media
+     * types are "video", "audio" and "fragmentedText". If no type is passed
+     * in, then the minimum of video, audio and fragmentedText buffer length is
+     * returned. NaN is returned if an invalid type is requested, the
+     * presentation does not contain that type, or if no arguments are passed
+     * and the presentation does not include any adaption sets of valid media
+     * type.
      *
      * @param {string} type - the media type of the buffer
-     * @returns {number} The length of the buffer for the given media type, in seconds.
+     * @returns {number} The length of the buffer for the given media type, in
+     *  seconds, or NaN
      * @memberof module:MediaPlayer
      * @instance
      */
     function getBufferLength(type) {
-
-        if (!type)
-        {
-            let videoBuffer = getTracksFor('video').length > 0 ? getDashMetrics().getCurrentBufferLevel(getMetricsFor('video')) : Number.MAX_SAFE_INTEGER;
-            let audioBuffer = getTracksFor('audio').length > 0 ? getDashMetrics().getCurrentBufferLevel(getMetricsFor('audio')) : Number.MAX_SAFE_INTEGER;
-            let textBuffer = getTracksFor('fragmentedText').length > 0 ? getDashMetrics().getCurrentBufferLevel(getMetricsFor('fragmentedText')) : Number.MAX_SAFE_INTEGER;
-            return Math.min(videoBuffer,audioBuffer,textBuffer).toPrecision(3);
-        }
-        else
-        {
-            if (type === 'video' || type === 'audio' || type === 'fragmentedText')
-            {
-                let buffer = getDashMetrics().getCurrentBufferLevel(getMetricsFor(type));
-                return buffer ? buffer.toPrecision(3) : NaN;
-            }
-            else
-            {
+        const types = ['video', 'audio', 'fragmentedText'];
+        if (!type) {
+            return types.map(
+                t => getTracksFor(t).length > 0 ? getDashMetrics().getCurrentBufferLevel(getMetricsFor(t)) : Number.MAX_VALUE
+            ).reduce(
+                (p, c) => Math.min(p, c)
+            );
+        } else {
+            if (types.indexOf(type) !== -1) {
+                const buffer = getDashMetrics().getCurrentBufferLevel(getMetricsFor(type));
+                return buffer ? buffer : NaN;
+            } else {
                 log('Warning  - getBufferLength requested for invalid type');
                 return NaN;
             }
@@ -392,7 +390,7 @@ function MediaPlayer() {
     /**
      * Current time of the playhead, in seconds.
      *
-     * If called with no arguments then the returned time value is time elapsed since the start point of the first stream.
+     * If called with no arguments then the returned time value is time elapsed since the start point of the first stream, or if it is a live stream, then the time will be based on the return value of the {@link module:MediaPlayer#duration duration()} method.
      * However if a stream ID is supplied then time is relative to the start of that stream, or is null if there is no such stream id in the manifest.
      *
      * @param {string} streamId - The ID of a stream that the returned playhead time must be relative to the start of. If undefined, then playhead time is relative to the first stream.
@@ -408,12 +406,12 @@ function MediaPlayer() {
 
         if (streamId !== undefined) {
             t = streamController.getTimeRelativeToStreamId(t, streamId);
-        }
 
-        if (playbackController.getIsDynamic()) {
+        } else if (playbackController.getIsDynamic()) {
             var metric = getDVRInfoMetric();
             t = (metric === null) ? 0 : duration() - (metric.range.end - metric.time);
         }
+
         return t;
     }
 
@@ -640,6 +638,16 @@ function MediaPlayer() {
     }
 
     /**
+     * @memberof module:MediaPlayer
+     * @see {@link module:MediaPlayer#setLiveDelay setLiveDelay()}
+     * @instance
+     * @returns {number|undefined} Current live stream delay in seconds when previously set, or `undefined`
+     */
+    function getLiveDelay() {
+        return mediaPlayerModel.getLiveDelay();
+    }
+
+    /**
      * <p>Set to true if you would like to override the default live delay and honor the SuggestedPresentationDelay attribute in by the manifest.</p>
      * @param {boolean} value
      * @default false
@@ -776,7 +784,7 @@ function MediaPlayer() {
      * Set to true if you would like dash.js to keep downloading fragments in the background
      * when the video element is paused.
      *
-     * @default false
+     * @default true
      * @param {boolean} value
      * @memberof module:MediaPlayer
      * @instance
@@ -850,6 +858,20 @@ function MediaPlayer() {
     }
 
     /**
+     * Update the video element size variables
+     * Should be called on window resize (or any other time player is resized). Fullscreen does trigger a window resize event.
+     *
+     * Once windowResizeEventCalled = true, abrController.checkPortalSize() will use element size variables rather than querying clientWidth every time.
+     *
+     * @memberof module:MediaPlayer
+     * @instance
+     */
+    function updatePortalSize() {
+        abrController.setElementSize();
+        abrController.setWindowResizeEventCalled(true);
+    }
+
+    /**
      * @memberof module:MediaPlayer
      * @instance
      */
@@ -868,6 +890,26 @@ function MediaPlayer() {
         abrController.setLimitBitrateByPortal(value);
     }
 
+    /**
+     * @memberof module:MediaPlayer
+     * @instance
+     */
+    function getUsePixelRatioInLimitBitrateByPortal() {
+        return abrController.getUsePixelRatioInLimitBitrateByPortal();
+    }
+
+    /**
+     * Sets whether to take into account the device's pixel ratio when defining the portal dimensions.
+     * Useful on, for example, retina displays.
+     *
+     * @param {boolean} value
+     * @memberof module:MediaPlayer
+     * @instance
+     * @default {boolean} false
+     */
+    function setUsePixelRatioInLimitBitrateByPortal(value) {
+        abrController.setUsePixelRatioInLimitBitrateByPortal(value);
+    }
 
     /**
      * Use this method to change the current text track for both external time text files and fragmented text tracks. There is no need to
@@ -1180,6 +1222,41 @@ function MediaPlayer() {
      */
     function setAutoSwitchQualityFor(type, value) {
         abrController.setAutoSwitchBitrateFor(type, value);
+    }
+
+
+    /**
+     * When enabled, after an ABR up-switch in quality, instead of requesting and appending the next fragment
+     * at the end of the current buffer range it is requested and appended closer to the current time
+     * When enabled, The maximum time to render a higher quality is current time + (1.5 * fragment duration).
+     *
+     * Note, WHen ABR down-switch is detected, we appended the lower quality at the end of the buffer range to preserve the
+     * higher quality media for as long as possible.
+     *
+     * If enabled, it should be noted there are a few cases when the client will not replace inside buffer range but rather
+     * just append at the end.  1. When the buffer level is less than one fragment duration 2.  The client
+     * is in an Abandonment State due to recent fragment abandonment event.
+     *
+     * Known issues:
+     * 1. In IE11 with auto switching off, if a user switches to a quality they can not downloaded in time the
+     * fragment may be appended in the same range as the playhead or even in past, in IE11 it may cause a stutter
+     * or stall in playback.
+     *
+     *
+     * @param {boolean} value
+     * @default {boolean} false
+     * @memberof module:MediaPlayer
+     * @instance
+     */
+    function setFastSwitchEnabled(value) { //TODO we need to look at track switches for adaptation sets.  If always replace it works much like this but clears buffer. Maybe too many ways to do same thing.
+        mediaPlayerModel.setFastSwitchEnabled(value);
+    }
+
+    /**
+     * @return {boolean} Returns true if FastSwitch ABR is enabled.
+     */
+    function getFastSwitchEnabled() {
+        return mediaPlayerModel.getFastSwitchEnabled();
     }
 
 
@@ -1502,6 +1579,18 @@ function MediaPlayer() {
     }
 
     /**
+     * Sets whether withCredentials on XHR requests is true or false
+     *
+     * @default false
+     * @param {boolean} value
+     * @memberof module:MediaPlayer
+     * @instance
+     */
+    function setXHRWithCredentials(value) {
+        mediaPlayerModel.setXHRWithCredentials(value);
+    }
+
+    /**
      * Detects if Protection is included and returns an instance of ProtectionController.js
      * @memberof module:MediaPlayer
      * @instance
@@ -1722,12 +1811,6 @@ function MediaPlayer() {
         let sourceBufferController = SourceBufferController(context).getInstance();
         sourceBufferController.setConfig({dashManifestModel: dashManifestModel});
 
-
-        let virtualBuffer = VirtualBuffer(context).getInstance();
-        virtualBuffer.setConfig({
-            sourceBufferController: sourceBufferController
-        });
-
         mediaController.initialize();
         mediaController.setConfig({
             errHandler: errHandler
@@ -1754,7 +1837,6 @@ function MediaPlayer() {
             mediaSourceController: MediaSourceController(context).getInstance(),
             timeSyncController: TimeSyncController(context).getInstance(),
             baseURLController: BaseURLController(context).getInstance(),
-            virtualBuffer: virtualBuffer,
             errHandler: errHandler,
             timelineConverter: TimelineConverter(context).getInstance()
         });
@@ -1795,7 +1877,7 @@ function MediaPlayer() {
         }
         // do not require Protection as dependencies as this is optional and intended to be loaded separately
         let Protection = dashjs.Protection; /* jshint ignore:line */
-        if (typeof Protection == 'function') {//TODO need a better way to register/detect plugin components
+        if (typeof Protection === 'function') {//TODO need a better way to register/detect plugin components
             let protection = Protection(context).create();
             Events.extend(Protection.events);
             MediaPlayerEvents.extend(Protection.events, { publicOnly: true });
@@ -1910,6 +1992,7 @@ function MediaPlayer() {
         getSource: getSource,
         setLiveDelayFragmentCount: setLiveDelayFragmentCount,
         setLiveDelay: setLiveDelay,
+        getLiveDelay: getLiveDelay,
         useSuggestedPresentationDelay: useSuggestedPresentationDelay,
         enableLastBitrateCaching: enableLastBitrateCaching,
         enableLastMediaSettingsCaching: enableLastMediaSettingsCaching,
@@ -1925,8 +2008,11 @@ function MediaPlayer() {
         getMetricsFor: getMetricsFor,
         getQualityFor: getQualityFor,
         setQualityFor: setQualityFor,
+        updatePortalSize: updatePortalSize,
         getLimitBitrateByPortal: getLimitBitrateByPortal,
         setLimitBitrateByPortal: setLimitBitrateByPortal,
+        getUsePixelRatioInLimitBitrateByPortal: getUsePixelRatioInLimitBitrateByPortal,
+        setUsePixelRatioInLimitBitrateByPortal: setUsePixelRatioInLimitBitrateByPortal,
         setTextTrack: setTextTrack,
         getBitrateInfoListFor: getBitrateInfoListFor,
         setInitialBitrateFor: setInitialBitrateFor,
@@ -1946,6 +2032,8 @@ function MediaPlayer() {
         getSelectionModeForInitialTrack: getSelectionModeForInitialTrack,
         getAutoSwitchQuality: getAutoSwitchQuality,
         setAutoSwitchQuality: setAutoSwitchQuality,
+        setFastSwitchEnabled: setFastSwitchEnabled,
+        getFastSwitchEnabled: getFastSwitchEnabled,
         getAutoSwitchQualityFor: getAutoSwitchQualityFor,
         setAutoSwitchQualityFor: setAutoSwitchQualityFor,
         enableBufferOccupancyABR: enableBufferOccupancyABR,
@@ -1963,6 +2051,7 @@ function MediaPlayer() {
         setBufferTimeAtTopQuality: setBufferTimeAtTopQuality,
         setFragmentLoaderRetryAttempts: setFragmentLoaderRetryAttempts,
         setFragmentLoaderRetryInterval: setFragmentLoaderRetryInterval,
+        setXHRWithCredentials: setXHRWithCredentials,
         setBufferTimeAtTopQualityLongForm: setBufferTimeAtTopQualityLongForm,
         setLongFormContentDurationThreshold: setLongFormContentDurationThreshold,
         setRichBufferThreshold: setRichBufferThreshold,

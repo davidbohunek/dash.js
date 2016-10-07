@@ -162,8 +162,7 @@ function MediaController() {
      * @memberof MediaController#
      */
     function getCurrentTrackFor(type, streamInfo) {
-        if (!type || !streamInfo) return null;
-
+        if (!type || !streamInfo || (streamInfo && !tracks[streamInfo.id])) return null;
         return tracks[streamInfo.id][type].current;
     }
 
@@ -307,9 +306,9 @@ function MediaController() {
         var sameId = t1.id === t2.id;
         var sameViewpoint = t1.viewpoint === t2.viewpoint;
         var sameLang = t1.lang === t2.lang;
-        var sameRoles = t1.roles.toString() == t2.roles.toString();
-        var sameAccessibility = t1.accessibility.toString() == t2.accessibility.toString();
-        var sameAudioChannelConfiguration = t1.audioChannelConfiguration.toString() == t2.audioChannelConfiguration.toString();
+        var sameRoles = t1.roles.toString() === t2.roles.toString();
+        var sameAccessibility = t1.accessibility.toString() === t2.accessibility.toString();
+        var sameAudioChannelConfiguration = t1.audioChannelConfiguration.toString() === t2.audioChannelConfiguration.toString();
 
         return (sameId && sameViewpoint && sameLang && sameRoles && sameAccessibility && sameAudioChannelConfiguration);
     }
